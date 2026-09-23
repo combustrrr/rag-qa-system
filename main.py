@@ -27,6 +27,7 @@ if str(BASE_DIR) not in sys.path:
 
 from src.document_loader import DocumentLoader, Document
 from src.text_cleaner import clean_text
+from src.text_chunker import TextChunker, TextChunk
 
 DATA_DIR = BASE_DIR / "data" / "sample_docs"
 
@@ -47,14 +48,14 @@ RAG_STAGES = [
 
 def print_banner():
     """Prints the project banner and the 10 stages."""
-    print("=" * 78)
+    print("=" * 80)
     print("   NLP LAB EXPERIMENT 5: RAG-BASED QUESTION ANSWERING SYSTEM")
-    print("=" * 78)
+    print("=" * 80)
     print(f" {'Stage':<10} | {'Module / File':<24} | {'Description'}")
-    print("-" * 78)
+    print("-" * 80)
     for stage_id, name, mod, desc in RAG_STAGES:
         print(f" {stage_id:<10} | {mod:<24} | {name}")
-    print("=" * 78 + "\n")
+    print("=" * 80 + "\n")
 
 
 def check_environment():
@@ -78,7 +79,7 @@ def check_environment():
             print(f"  [MISSING]   {pkg_name:<22} ({stage_desc})")
             all_installed = False
 
-    print("-" * 78)
+    print("-" * 80)
     if all_installed:
         print("[+] SUCCESS: All required libraries are installed and ready to use!\n")
     else:
@@ -88,9 +89,9 @@ def check_environment():
 
 def run_document_processing(data_dir: Path = DATA_DIR):
     """Executes Stages 1-3: File discovery, text extraction, cleaning, and metadata formatting."""
-    print("=" * 78)
+    print("=" * 80)
     print("   STAGE 1 to 3: DOCUMENT PROCESSING & EXTRACTION PIPELINE")
-    print("=" * 78)
+    print("=" * 80)
     print(f"[*] Target Directory: {data_dir}\n")
 
     loader = DocumentLoader(data_dir)
@@ -108,7 +109,7 @@ def run_document_processing(data_dir: Path = DATA_DIR):
     documents = loader.load_directory()
     print(f"\n[+] Successfully extracted {len(documents)} document section(s):\n")
 
-    print("-" * 78)
+    print("-" * 80)
     for idx, doc in enumerate(documents, start=1):
         m = doc.metadata
         print(f"Document #{idx}:")
@@ -123,16 +124,89 @@ def run_document_processing(data_dir: Path = DATA_DIR):
             print(f"    | {line[:72]}")
         if len(doc.text.split("\n")) > 3:
             print("    | ...")
-        print("-" * 78)
+        print("-" * 80)
 
     print(f"\n[✓] Document Processing complete! Extracted {len(documents)} units ready for chunking (Stage 4).\n")
     return documents
 
 
-def run_stage_stub(stage_num: int):
+def print_chunking_theory():
+    """Prints a brief explanation of why chunking and overlap are required in RAG."""
+    print("=" * 80)
+    print("   THEORETICAL INSIGHT: WHY CHUNKING & OVERLAP ARE REQUIRED IN RAG")
+    print("=" * 80)
+    print("1. Why Chunking is Required:")
+    print("   • Embedding Constraint : Embedding models (e.g. MiniLM) have fixed token limits")
+    print("                            (typically 256 or 512 tokens). Full documents get truncated.")
+    print("   • Retrieval Precision  : User queries target specific facts, not entire books.")
+    print("                            Smaller chunks allow pinpoint nearest-neighbor search.")
+    print("   • Context Window Limits: Feeding entire documents to an LLM wastes tokens, adds")
+    print("                            latency, and increases hallucination risk.")
+    print("\n2. Why Overlap is Required:")
+    print("   • Context Continuity   : Key ideas, definitions, and clauses often span across cut points.")
+    print("                            Overlap ensures boundary information is not split in half.")
+    print("   • High Retrieval Recall: Queries targeting transition sentences can still match")
+    print("                            adjacent chunks with complete semantic meaning.")
+    print("=" * 80 + "\n")
+
+
+def run_text_chunking(data_dir: Path = DATA_DIR, chunk_size: int = 500, chunk_overlap: int = 100):
+    """Executes Stage 4: Text Chunking on extracted documents."""
+    # First extract documents
+    loader = DocumentLoader(data_dir)
+    documents = loader.load_directory()
+
+    if not documents:
+        print("[!] No documents found to chunk. Run document processing first.")
+        return []
+
+    print("=" * 80)
+    print("   STAGE 4: TEXT CHUNKING PIPELINE")
+    print("=" * 80)
+    print(f"[*] Configuration: chunk_size = {chunk_size} chars | chunk_overlap = {chunk_overlap} chars (~{int(chunk_overlap/chunk_size*100)}% overlap)\n")
+
+    chunker = TextChunker(chunk_size=chunk_size, chunk_overlap=chunk_overlap)
+    all_chunks = chunker.chunk_documents(documents)
+
+    # 1. Total documents and chunks
+    print(f"[*] Total Documents Processed : {len(documents)}")
+    print(f"[*] Total Text Chunks Created : {len(all_chunks)}\n")
+
+    # 2. Display first 3 chunks and their complete metadata
+    display_count = min(3, len(all_chunks))
+    print(f"[+] Displaying First {display_count} Chunks with Metadata:")
+    print("-" * 80)
+
+    for i in range(display_count):
+        chunk = all_chunks[i]
+        meta = chunk.metadata
+        print(f"Chunk #{i + 1}:")
+        print(f"  • Chunk ID        : {chunk.chunk_id}")
+        print(f"  • Parent Doc ID   : {chunk.doc_id}")
+        print(f"  • Source Filename : {meta.get('filename')}")
+        print(f"  • Page Number     : {meta.get('page')} of {meta.get('total_pages')}")
+        print(f"  • File Format     : {meta.get('file_type', '').upper()}")
+        print(f"  • Chunk Index     : {chunk.chunk_index + 1} of {meta.get('total_chunks_in_doc')}")
+        print(f"  • Character Range : [{meta.get('start_char')} : {meta.get('end_char')}] ({meta.get('char_count')} chars, {meta.get('word_count')} words)")
+        print("  • Chunk Text Content:")
+        for line in chunk.text.split("\n"):
+            print(f"    | {line}")
+        print("-" * 80)
+
+    print()
+    print_chunking_theory()
+    print(f"[✓] Stage 4 complete! {len(all_chunks)} chunks ready for Embedding Generation (Stage 5).\n")
+    return all_chunks
+
+
+def run_stage_stub(stage_num: int, chunk_size: int = 500, chunk_overlap: int = 100):
     """Runs implemented stages or explains pending ones."""
     if stage_num in (1, 2, 3):
         run_document_processing()
+        return
+
+    if stage_num == 4:
+        run_text_chunking(chunk_size=chunk_size, chunk_overlap=chunk_overlap)
         return
 
     stage_id, name, module_path, desc = RAG_STAGES[stage_num - 1]
@@ -140,7 +214,7 @@ def run_stage_stub(stage_num: int):
     print(f"    Target Module : {module_path}")
     print(f"    Objective     : {desc}")
     print("    Status        : Scheduled for subsequent implementation.")
-    print("                    Stages 1 to 3 (Document Processing) are currently implemented.\n")
+    print("                    Stages 1 to 4 (Document Processing & Chunking) are currently implemented.\n")
 
 
 def main():
@@ -161,6 +235,23 @@ def main():
         "--process-docs",
         action="store_true",
         help="Run Stages 1-3: Load, extract, and clean documents from data/sample_docs/",
+    )
+    parser.add_argument(
+        "--chunk-docs",
+        action="store_true",
+        help="Run Stage 4: Split documents into overlapping chunks with metadata",
+    )
+    parser.add_argument(
+        "--chunk-size",
+        type=int,
+        default=500,
+        help="Maximum characters per chunk (default: 500)",
+    )
+    parser.add_argument(
+        "--chunk-overlap",
+        type=int,
+        default=100,
+        help="Overlap characters between adjacent chunks (default: 100)",
     )
     parser.add_argument(
         "--stage",
@@ -188,13 +279,18 @@ def main():
         run_document_processing()
         return
 
+    if args.chunk_docs:
+        run_text_chunking(chunk_size=args.chunk_size, chunk_overlap=args.chunk_overlap)
+        return
+
     if args.stage:
-        run_stage_stub(args.stage)
+        run_stage_stub(args.stage, chunk_size=args.chunk_size, chunk_overlap=args.chunk_overlap)
         return
 
     # Default view if no arguments provided
     print("[i] Project setup initialized successfully!")
     print("[i] Available commands:")
+    print("    python main.py --chunk-docs     Run Stage 4 (Text Chunking)")
     print("    python main.py --process-docs   Run Stages 1-3 (Document Processing)")
     print("    python main.py --check-env      Check required library installations")
     print("    python main.py --list-stages    View the 10 RAG stages and mapped files")
