@@ -20,11 +20,15 @@ import sys
 import argparse
 from pathlib import Path
 
-# Directory references
+# Add project root to sys.path
 BASE_DIR = Path(__file__).resolve().parent
+if str(BASE_DIR) not in sys.path:
+    sys.path.insert(0, str(BASE_DIR))
+
+from src.document_loader import DocumentLoader, Document
+from src.text_cleaner import clean_text
+
 DATA_DIR = BASE_DIR / "data" / "sample_docs"
-CHROMA_DIR = BASE_DIR / "data" / "chromadb_storage"
-SRC_DIR = BASE_DIR / "src"
 
 # 10 Stages of Experiment 5
 RAG_STAGES = [
@@ -82,14 +86,61 @@ def check_environment():
         print("[!] Run: pip install -r requirements.txt\n")
 
 
+def run_document_processing(data_dir: Path = DATA_DIR):
+    """Executes Stages 1-3: File discovery, text extraction, cleaning, and metadata formatting."""
+    print("=" * 78)
+    print("   STAGE 1 to 3: DOCUMENT PROCESSING & EXTRACTION PIPELINE")
+    print("=" * 78)
+    print(f"[*] Target Directory: {data_dir}\n")
+
+    loader = DocumentLoader(data_dir)
+
+    # 1. File Discovery
+    print("[1] Discovering Files...")
+    discovered = loader.discover_files()
+    print(f"    Total supported, non-empty files found: {len(discovered)}")
+    for f in discovered:
+        print(f"    • {f.name:<30} ({f.stat().st_size:,} bytes)")
+    print()
+
+    # 2 & 3. Extraction and Cleaning
+    print("[2 & 3] Extracting & Cleaning Documents...")
+    documents = loader.load_directory()
+    print(f"\n[+] Successfully extracted {len(documents)} document section(s):\n")
+
+    print("-" * 78)
+    for idx, doc in enumerate(documents, start=1):
+        m = doc.metadata
+        print(f"Document #{idx}:")
+        print(f"  • Doc ID     : {doc.doc_id}")
+        print(f"  • Source     : {m.get('filename')}")
+        print(f"  • Type       : {m.get('file_type', '').upper()}")
+        print(f"  • Page       : {m.get('page')} of {m.get('total_pages')}")
+        print(f"  • Word Count : {m.get('word_count')} words ({m.get('char_count')} chars)")
+        print("  • Cleaned Text Preview:")
+        preview_lines = doc.text.split("\n")[:3]
+        for line in preview_lines:
+            print(f"    | {line[:72]}")
+        if len(doc.text.split("\n")) > 3:
+            print("    | ...")
+        print("-" * 78)
+
+    print(f"\n[✓] Document Processing complete! Extracted {len(documents)} units ready for chunking (Stage 4).\n")
+    return documents
+
+
 def run_stage_stub(stage_num: int):
-    """Placeholder runner for individual stages."""
+    """Runs implemented stages or explains pending ones."""
+    if stage_num in (1, 2, 3):
+        run_document_processing()
+        return
+
     stage_id, name, module_path, desc = RAG_STAGES[stage_num - 1]
     print(f"[*] Selected: {stage_id} - {name}")
     print(f"    Target Module : {module_path}")
     print(f"    Objective     : {desc}")
-    print("    Status        : Initial project scaffolding complete.")
-    print("                    Implementation of this stage will be added in subsequent steps.\n")
+    print("    Status        : Scheduled for subsequent implementation.")
+    print("                    Stages 1 to 3 (Document Processing) are currently implemented.\n")
 
 
 def main():
@@ -105,6 +156,11 @@ def main():
         "--list-stages",
         action="store_true",
         help="List all 10 stages of the RAG experiment",
+    )
+    parser.add_argument(
+        "--process-docs",
+        action="store_true",
+        help="Run Stages 1-3: Load, extract, and clean documents from data/sample_docs/",
     )
     parser.add_argument(
         "--stage",
@@ -128,6 +184,10 @@ def main():
             print(f"      Goal: {desc}\n")
         return
 
+    if args.process_docs:
+        run_document_processing()
+        return
+
     if args.stage:
         run_stage_stub(args.stage)
         return
@@ -135,10 +195,11 @@ def main():
     # Default view if no arguments provided
     print("[i] Project setup initialized successfully!")
     print("[i] Available commands:")
+    print("    python main.py --process-docs   Run Stages 1-3 (Document Processing)")
     print("    python main.py --check-env      Check required library installations")
     print("    python main.py --list-stages    View the 10 RAG stages and mapped files")
-    print("    python main.py --stage <1-10>   Inspect a specific RAG stage")
-    print("\n[i] Ready to proceed with Stage 1 & 2 implementation when requested.\n")
+    print("    python main.py --stage <1-10>   Run or inspect a specific RAG stage")
+    print("    python -m unittest              Run automated test suite\n")
 
 
 if __name__ == "__main__":
