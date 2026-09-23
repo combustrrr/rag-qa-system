@@ -122,6 +122,32 @@ python main.py --check-env
 # List detailed breakdown of stages
 python main.py --list-stages
 
-# Inspect a specific stage
-python main.py --stage 1
+# Run Stages 1 to 3 (Document Ingestion, Extraction & Cleaning)
+python main.py --process-docs
+
+# Run Stage 4 (Text Chunking with Overlap)
+python main.py --chunk-docs --chunk-size 500 --chunk-overlap 100
+
+# Run Stage 5 (Dense Embedding Generation)
+python main.py --embed-chunks
+
+# Or run any specific stage via --stage
+python main.py --stage 5
+
+# Run complete automated test suite
+python -m unittest discover tests -v
 ```
+
+---
+
+## 6. Stage 5: Dense Vector Embedding Generation
+
+In Stage 5, the pipeline takes the segmented text chunks produced in Stage 4 and generates dense numerical vector embeddings using the open-source **`all-MiniLM-L6-v2`** model.
+
+### Key Features
+- **Local & CPU-Friendly**: Uses `sentence-transformers` with a lightweight model (~80 MB, 384 dimensions).
+- **Single-Load Architecture**: Model weights are loaded into memory once and reused across all chunks and incoming queries.
+- **Traceable Mapping**: Retains complete traceability:
+  $$\text{chunk\_id} \longrightarrow \text{text} \longrightarrow \text{metadata} \longrightarrow \text{embedding}$$
+- **Ready for Vector Database**: Vectors are L2-normalized, enabling direct cosine similarity indexing in Stage 6 (ChromaDB).
+

@@ -28,6 +28,7 @@ if str(BASE_DIR) not in sys.path:
 from src.document_loader import DocumentLoader, Document
 from src.text_cleaner import clean_text
 from src.text_chunker import TextChunker, TextChunk
+from src.embedder import EmbeddingGenerator, EmbeddedChunk, run_embedding_generation
 
 DATA_DIR = BASE_DIR / "data" / "sample_docs"
 
@@ -199,7 +200,7 @@ def run_text_chunking(data_dir: Path = DATA_DIR, chunk_size: int = 500, chunk_ov
     return all_chunks
 
 
-def run_stage_stub(stage_num: int, chunk_size: int = 500, chunk_overlap: int = 100):
+def run_stage_stub(stage_num: int, chunk_size: int = 500, chunk_overlap: int = 100, model_name: str = "all-MiniLM-L6-v2"):
     """Runs implemented stages or explains pending ones."""
     if stage_num in (1, 2, 3):
         run_document_processing()
@@ -209,12 +210,16 @@ def run_stage_stub(stage_num: int, chunk_size: int = 500, chunk_overlap: int = 1
         run_text_chunking(chunk_size=chunk_size, chunk_overlap=chunk_overlap)
         return
 
+    if stage_num == 5:
+        run_embedding_generation(chunk_size=chunk_size, chunk_overlap=chunk_overlap, model_name=model_name)
+        return
+
     stage_id, name, module_path, desc = RAG_STAGES[stage_num - 1]
     print(f"[*] Selected: {stage_id} - {name}")
     print(f"    Target Module : {module_path}")
     print(f"    Objective     : {desc}")
     print("    Status        : Scheduled for subsequent implementation.")
-    print("                    Stages 1 to 4 (Document Processing & Chunking) are currently implemented.\n")
+    print("                    Stages 1 to 5 (Document Processing, Chunking & Embeddings) are currently implemented.\n")
 
 
 def main():
@@ -240,6 +245,17 @@ def main():
         "--chunk-docs",
         action="store_true",
         help="Run Stage 4: Split documents into overlapping chunks with metadata",
+    )
+    parser.add_argument(
+        "--embed-chunks",
+        action="store_true",
+        help="Run Stage 5: Generate dense vector embeddings using sentence-transformers",
+    )
+    parser.add_argument(
+        "--embedding-model",
+        type=str,
+        default="all-MiniLM-L6-v2",
+        help="Sentence-transformers model name (default: all-MiniLM-L6-v2)",
     )
     parser.add_argument(
         "--chunk-size",
@@ -283,13 +299,27 @@ def main():
         run_text_chunking(chunk_size=args.chunk_size, chunk_overlap=args.chunk_overlap)
         return
 
+    if args.embed_chunks:
+        run_embedding_generation(
+            chunk_size=args.chunk_size,
+            chunk_overlap=args.chunk_overlap,
+            model_name=args.embedding_model,
+        )
+        return
+
     if args.stage:
-        run_stage_stub(args.stage, chunk_size=args.chunk_size, chunk_overlap=args.chunk_overlap)
+        run_stage_stub(
+            args.stage,
+            chunk_size=args.chunk_size,
+            chunk_overlap=args.chunk_overlap,
+            model_name=args.embedding_model,
+        )
         return
 
     # Default view if no arguments provided
     print("[i] Project setup initialized successfully!")
     print("[i] Available commands:")
+    print("    python main.py --embed-chunks   Run Stage 5 (Embedding Generation)")
     print("    python main.py --chunk-docs     Run Stage 4 (Text Chunking)")
     print("    python main.py --process-docs   Run Stages 1-3 (Document Processing)")
     print("    python main.py --check-env      Check required library installations")
