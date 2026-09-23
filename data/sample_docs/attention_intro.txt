@@ -1,0 +1,15 @@
+The Transformer Architecture and Attention Mechanisms
+
+In natural language processing, the Transformer model was introduced in the seminal 2017 paper "Attention Is All You Need" by Vaswani et al. Unlike earlier recurrent neural networks (RNNs) and Long Short-Term Memory networks (LSTMs) that processed sequences sequentially, the Transformer relies entirely on self-attention mechanisms to compute representations of its input and output without using sequence-aligned RNNs or convolution.
+
+Self-attention, also known as intra-attention, relates different positions of a single sequence in order to compute a representation of the sequence. It allows the model to capture dependencies between words regardless of their positional distance in the text. Multi-head attention expands the model's ability to focus on different positions and allows the model to jointly attend to information from different representation subspaces.
+
+Retrieval-Augmented Generation (RAG) combines pre-trained parametric memory (the language model) with non-parametric memory (a dense vector index of documents). In RAG, external knowledge is retrieved based on query similarity and prepended to the input context, reducing hallucinations and allowing the system to access up-to-date information without retraining the model.
+
+A typical RAG pipeline involves:
+1. Document ingestion and text cleaning.
+2. Breaking documents into manageable chunks.
+3. Encoding chunks into vector representations using an embedding model.
+4. Storing vectors in a vector database such as ChromaDB.
+5. Performing similarity search for user queries.
+6. Passing the retrieved context along with the query to a generative language model to synthesize the final answer.

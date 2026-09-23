@@ -1,0 +1,22 @@
+# ==============================================================================
+# NLP Lab Experiment 5: RAG-based Question Answering System
+# ==============================================================================
+
+# Stages 5 & 9: Embeddings & Local Transformer Models (Free, open-source)
+sentence-transformers>=3.0.0
+transformers>=4.40.0
+torch>=2.2.0
+
+# Stages 6 & 7: Vector Database & Similarity Retrieval
+chromadb>=0.5.0
+
+# Stages 1 & 2: Document Ingestion and PDF Text Extraction
+pypdf>=4.0.0
+
+# Stage 10: Question-Answering Evaluation Metrics
+rouge-score>=0.1.2
+nltk>=3.8.0
+
+# CLI and Visualization Tools
+rich>=13.7.0
+python-dotenv>=1.0.0
