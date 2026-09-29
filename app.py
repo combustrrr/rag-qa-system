@@ -63,7 +63,6 @@ demo = gr.ChatInterface(
     title="RAG-based Question Answering System",
     description="Ask questions based on the laboratory knowledge base. The system retrieves relevant chunks and uses Qwen1.5-0.5B to synthesize an answer.",
     examples=["What is the main advantage of the Transformer architecture?", "What does RAG combine?"],
-    theme=gr.themes.Soft(),
 )
 
 if __name__ == "__main__":
