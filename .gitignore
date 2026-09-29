@@ -25,3 +25,4 @@ data/chromadb_storage/
 # IDE files
 .vscode/
 .idea/
+data/chroma_db/
