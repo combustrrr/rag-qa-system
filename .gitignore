@@ -26,3 +26,4 @@ data/chromadb_storage/
 .vscode/
 .idea/
 data/chroma_db/
+.gradio/
