@@ -200,6 +200,115 @@ def run_text_chunking(data_dir: Path = DATA_DIR, chunk_size: int = 500, chunk_ov
     return all_chunks
 
 
+
+def run_build_kb(chunk_size: int = 500, chunk_overlap: int = 100, model_name: str = "all-MiniLM-L6-v2"):
+    from src.embedder import run_embedding_generation
+    from src.vector_store import VectorStore
+    from pathlib import Path
+    
+    print("=" * 80)
+    print("   BUILDING KNOWLEDGE BASE (Stages 1-6)")
+    print("=" * 80)
+    
+    embedded_chunks, mapping = run_embedding_generation(
+        chunk_size=chunk_size, 
+        chunk_overlap=chunk_overlap, 
+        model_name=model_name
+    )
+    
+    if not embedded_chunks:
+        print("[!] No chunks generated. Aborting Knowledge Base build.")
+        return
+        
+    base_dir = Path(__file__).resolve().parent
+    db_dir = base_dir / "data" / "chroma_db"
+    
+    print(f"[*] Initializing Vector Database at {db_dir}")
+    vector_store = VectorStore(persist_directory=str(db_dir))
+    vector_store.create_vector_store()
+    
+    print(f"[*] Indexing {len(embedded_chunks)} chunks...")
+    vector_store.add_documents(embedded_chunks)
+    vector_store.save_vector_store()
+    
+    print("[✓] Knowledge Base successfully built and indexed!\n")
+
+def run_interactive_rag(model_name: str = "all-MiniLM-L6-v2", use_local_llm: bool = True):
+    from pathlib import Path
+    from src.embedder import EmbeddingGenerator
+    from src.vector_store import VectorStore
+    from src.retriever import Retriever
+    from src.generator import Generator
+
+    base_dir = Path(__file__).resolve().parent
+    db_dir = base_dir / "data" / "chroma_db"
+    
+    if not db_dir.exists():
+        print("[!] Vector database not found. Please run with --build-kb first.")
+        return
+        
+    print("=" * 80)
+    print("   INTERACTIVE RAG SYSTEM (Stages 7-9)")
+    print("=" * 80)
+    
+    print("[*] Loading Vector Database...")
+    vector_store = VectorStore(persist_directory=str(db_dir))
+    vector_store.load_vector_store()
+    
+    print(f"[*] Loading Embedding Model ({model_name})...")
+    embedder = EmbeddingGenerator(model_name=model_name)
+    retriever = Retriever(embedder=embedder, vector_store=vector_store)
+    
+    print(f"[*] Loading LLM Generator (Local: {use_local_llm})...")
+    import warnings
+    warnings.filterwarnings("ignore")
+    try:
+        generator = Generator(use_local=use_local_llm, model_name="Qwen/Qwen1.5-0.5B")
+    except Exception as e:
+        print(f"[!] Failed to load LLM: {e}")
+        return
+        
+    print("\n[✓] System Ready! Type 'exit' or 'quit' to stop.\n")
+    
+    while True:
+        try:
+            question = input("\n[?] Enter your question: ").strip()
+            if not question:
+                continue
+            if question.lower() in ('exit', 'quit'):
+                break
+                
+            print("\n[*] Retrieving relevant context...")
+            contexts = retriever.retrieve_context(question, top_k=3)
+            
+            if not contexts:
+                print("[!] No contexts found.")
+                continue
+                
+            print(f"[*] Found {len(contexts)} relevant chunks. Generating answer...")
+            answer = generator.generate_answer(question, contexts)
+            
+            print("\n" + "=" * 80)
+            print("   RAG ANSWER")
+            print("=" * 80)
+            print(answer)
+            print("\n   SOURCES USED:")
+            print("   " + "-" * 77)
+            for i, ctx in enumerate(contexts, 1):
+                meta = ctx.get('metadata', {})
+                source = meta.get('filename', 'Unknown')
+                page = meta.get('page', 'N/A')
+                distance = ctx.get('distance', 0.0)
+                print(f"   {i}. {source} (Page {page}) - Distance: {distance:.4f}")
+            print("=" * 80 + "\n")
+            
+        except KeyboardInterrupt:
+            break
+        except Exception as e:
+            print(f"\n[!] An error occurred: {e}")
+            
+    print("\n[i] Exiting Interactive RAG System. Goodbye!")
+
 def run_stage_stub(stage_num: int, chunk_size: int = 500, chunk_overlap: int = 100, model_name: str = "all-MiniLM-L6-v2"):
     """Runs implemented stages or explains pending ones."""
     if stage_num in (1, 2, 3):
@@ -212,6 +321,14 @@ def run_stage_stub(stage_num: int, chunk_size: int = 500, chunk_overlap: int = 1
 
     if stage_num == 5:
         run_embedding_generation(chunk_size=chunk_size, chunk_overlap=chunk_overlap, model_name=model_name)
+        return
+
+    if stage_num == 6:
+        run_build_kb(chunk_size=chunk_size, chunk_overlap=chunk_overlap, model_name=model_name)
+        return
+
+    if stage_num in (7, 8, 9):
+        run_interactive_rag(model_name=model_name)
         return
 
     stage_id, name, module_path, desc = RAG_STAGES[stage_num - 1]
@@ -270,6 +387,16 @@ def main():
         help="Overlap characters between adjacent chunks (default: 100)",
     )
     parser.add_argument(
+        "--build-kb",
+        action="store_true",
+        help="Run Stages 1-6: Build and index the vector database",
+    )
+    parser.add_argument(
+        "--interactive",
+        action="store_true",
+        help="Run Stages 7-9: Start the interactive RAG system",
+    )
+    parser.add_argument(
         "--stage",
         type=int,
         choices=range(1, 11),
@@ -307,6 +434,14 @@ def main():
         )
         return
 
+    if args.build_kb:
+        run_build_kb(chunk_size=args.chunk_size, chunk_overlap=args.chunk_overlap, model_name=args.embedding_model)
+        return
+
+    if args.interactive:
+        run_interactive_rag(model_name=args.embedding_model)
+        return
+
     if args.stage:
         run_stage_stub(
             args.stage,
@@ -319,6 +454,8 @@ def main():
     # Default view if no arguments provided
     print("[i] Project setup initialized successfully!")
     print("[i] Available commands:")
+    print("    python main.py --build-kb       Build the knowledge base (Stages 1-6)")
+    print("    python main.py --interactive    Start the interactive RAG Q&A (Stages 7-9)")
     print("    python main.py --embed-chunks   Run Stage 5 (Embedding Generation)")
     print("    python main.py --chunk-docs     Run Stage 4 (Text Chunking)")
     print("    python main.py --process-docs   Run Stages 1-3 (Document Processing)")
